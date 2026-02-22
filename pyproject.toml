@@ -1,0 +1,31 @@
+[project]
+name = "ai4u-memory"
+version = "0.2.0"
+description = "Agent Memory Service for ai4u.now — graphiti temporal knowledge graph + FalkorDB"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.34,<1",
+    "graphiti-core[falkordb]>=0.28,<0.29",
+    "pydantic>=2.0,<3",
+    "pydantic-settings>=2.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai4u_memory"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

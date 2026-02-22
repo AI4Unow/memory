@@ -1,0 +1,36 @@
+# memory.ai4u.now — Docker Compose
+# Two services: FalkorDB (graph+vector DB) + API server (FastAPI)
+
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - falkordb_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    environment:
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: "6379"
+      LLM_API_BASE: ${LLM_API_BASE:-https://api.ai4u.now/v1}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-004}
+      RERANKER_MODEL: ${RERANKER_MODEL:-gpt-4o-mini}
+    restart: unless-stopped
+
+volumes:
+  falkordb_data:
