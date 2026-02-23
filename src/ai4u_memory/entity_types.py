@@ -106,5 +106,11 @@ class Reflection(BaseModel):
     )
 
 
-# All entity types to register with graphiti
-ENTITY_TYPES = [Fact, Decision, Failure, Reflection]
+# All entity types to register with graphiti (name → model class)
+# graphiti 0.28 expects dict[str, type[BaseModel]]
+ENTITY_TYPES: dict[str, type[BaseModel]] = {
+    "Fact": Fact,
+    "Decision": Decision,
+    "Failure": Failure,
+    "Reflection": Reflection,
+}

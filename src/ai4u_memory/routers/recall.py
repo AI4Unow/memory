@@ -7,15 +7,14 @@ GET  /v1/episodes   — List recent episodes
 DELETE /v1/entities — Clear graph data for a scope
 """
 
+import re
+
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from graphiti_core import Graphiti
-from graphiti_core.search.search_config_recipes import (
-    COMBINED_HYBRID_SEARCH_CROSS_ENCODER,
-)
 from graphiti_core.search.search_filters import SearchFilters
 from pydantic import BaseModel, Field
 
@@ -56,13 +55,19 @@ def _get_graphiti(request: Request) -> Graphiti:
     return graphiti
 
 
+def _sanitize_id(value: str) -> str:
+    """Sanitize an ID for graphiti — only alphanumeric, dashes, underscores."""
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", value)
+
+
 def _build_group_ids(
     user_id: str, agent_id: Optional[str] = None
 ) -> list[str]:
     """Build graphiti group_ids for search scoping."""
-    group_ids = [user_id]
+    uid = _sanitize_id(user_id)
+    group_ids = [uid]
     if agent_id:
-        group_ids.append(f"{user_id}:{agent_id}")
+        group_ids.append(f"{uid}_{_sanitize_id(agent_id)}")
     return group_ids
 
 
@@ -75,32 +80,25 @@ def _build_group_ids(
 async def recall(request: Request, body: RecallRequest):
     """Search memories using graphiti's hybrid search.
 
-    Combines cosine similarity, BM25 fulltext, and graph traversal
-    with cross-encoder reranking for maximum accuracy.
-
-    Returns edges (facts), nodes (entities), episodes (raw context),
-    and communities (cluster summaries), ranked by salience.
+    In graphiti 0.28, search() returns list[EntityEdge] directly.
+    Each edge represents a fact connecting two entities.
     """
     graphiti = _get_graphiti(request)
     group_ids = _build_group_ids(body.user_id, body.agent_id)
 
     try:
-        results = await graphiti.search(
+        # graphiti 0.28: search() returns list[EntityEdge]
+        edges = await graphiti.search(
             query=body.query,
             group_ids=group_ids,
-            config=COMBINED_HYBRID_SEARCH_CROSS_ENCODER,
+            num_results=body.limit,
             search_filter=SearchFilters(),
         )
 
         # Format edges (temporal facts)
-        edges = []
-        for i, edge in enumerate(results.edges):
-            score = (
-                results.edge_reranker_scores[i]
-                if i < len(results.edge_reranker_scores)
-                else 0.0
-            )
-            edges.append(
+        results = []
+        for edge in edges:
+            results.append(
                 {
                     "uuid": edge.uuid,
                     "fact": edge.fact,
@@ -112,63 +110,16 @@ async def recall(request: Request, body: RecallRequest):
                     "invalid_at": (
                         edge.invalid_at.isoformat() if edge.invalid_at else None
                     ),
-                    "score": score,
-                }
-            )
-
-        # Format nodes (entities)
-        nodes = []
-        for i, node in enumerate(results.nodes):
-            score = (
-                results.node_reranker_scores[i]
-                if i < len(results.node_reranker_scores)
-                else 0.0
-            )
-            nodes.append(
-                {
-                    "uuid": node.uuid,
-                    "name": node.name,
-                    "type": node.label if hasattr(node, "label") else "Entity",
-                    "summary": node.summary if hasattr(node, "summary") else "",
-                    "score": score,
-                }
-            )
-
-        # Format episodes (raw context)
-        episodes = []
-        for ep in results.episodes:
-            episodes.append(
-                {
-                    "uuid": ep.uuid,
-                    "name": ep.name,
-                    "content": ep.content if hasattr(ep, "content") else "",
-                    "created_at": (
-                        ep.created_at.isoformat() if ep.created_at else None
-                    ),
-                }
-            )
-
-        # Format communities (cluster summaries)
-        communities = []
-        for comm in results.communities:
-            communities.append(
-                {
-                    "uuid": comm.uuid,
-                    "name": comm.name,
-                    "summary": comm.summary if hasattr(comm, "summary") else "",
                 }
             )
 
         # Apply salience ranking
-        ranked_edges = rank_by_salience(edges, body.min_salience)
+        ranked = rank_by_salience(results, body.min_salience)
 
         return {
             "status": "ok",
             "query": body.query,
-            "edges": ranked_edges[: body.limit],
-            "nodes": nodes[: body.limit],
-            "episodes": episodes[: body.limit],
-            "communities": communities,
+            "edges": ranked[: body.limit],
         }
 
     except Exception as e:
@@ -185,26 +136,30 @@ async def list_entities(
 ):
     """List all entities in the knowledge graph for a given scope."""
     graphiti = _get_graphiti(request)
-    group_ids = _build_group_ids(user_id, agent_id)
+    group_id = _sanitize_id(user_id)
+    if agent_id:
+        group_id = f"{_sanitize_id(user_id)}_{_sanitize_id(agent_id)}"
 
     try:
-        # Search with a broad query to get entities
-        results = await graphiti.search(
-            query="*",
-            group_ids=group_ids,
-            config=COMBINED_HYBRID_SEARCH_CROSS_ENCODER,
-            search_filter=SearchFilters(),
+        # Query graph directly for entity nodes
+        records, _, _ = await graphiti.driver.execute_query(
+            """
+            MATCH (n:Entity {group_id: $group_id})
+            RETURN n.uuid AS uuid, n.name AS name, n.summary AS summary, n.group_id AS group_id
+            LIMIT $limit
+            """,
+            group_id=group_id,
+            limit=limit,
         )
 
         nodes = []
-        for node in results.nodes[:limit]:
+        for r in records:
             nodes.append(
                 {
-                    "uuid": node.uuid,
-                    "name": node.name,
-                    "type": node.label if hasattr(node, "label") else "Entity",
-                    "summary": node.summary if hasattr(node, "summary") else "",
-                    "group_id": node.group_id,
+                    "uuid": r["uuid"],
+                    "name": r["name"],
+                    "summary": r.get("summary", ""),
+                    "group_id": r.get("group_id", ""),
                 }
             )
 
@@ -263,9 +218,9 @@ async def delete_entities(
     """Delete all graph data for a given user/agent scope."""
     graphiti = _get_graphiti(request)
 
-    group_id = user_id
+    group_id = _sanitize_id(user_id)
     if agent_id:
-        group_id = f"{user_id}:{agent_id}"
+        group_id = f"{_sanitize_id(user_id)}_{_sanitize_id(agent_id)}"
 
     try:
         await graphiti.driver.execute_query(

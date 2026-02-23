@@ -12,9 +12,9 @@ from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerCli
 from graphiti_core.driver.falkordb_driver import FalkorDriver
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from graphiti_core.llm_client import LLMConfig
-from graphiti_core.llm_client.openai_client import OpenAIClient
 
 from ai4u_memory.config import Settings
+from ai4u_memory.llm_compat import ChatCompletionsClient
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +38,15 @@ async def create_graphiti(settings: Settings) -> Graphiti:
         port=settings.falkordb_port,
     )
 
-    # LLM client for entity/relationship extraction
+    # LLM client — uses Chat Completions API (not Responses API)
+    # for compatibility with OpenAI-compatible proxies
     llm_config = LLMConfig(
         model=settings.llm_model,
+        small_model=settings.llm_model,  # prevent graphiti using gpt-4.1-nano default
         api_key=settings.llm_api_key,
         base_url=settings.llm_api_base,
     )
-    llm_client = OpenAIClient(config=llm_config)
+    llm_client = ChatCompletionsClient(config=llm_config)
 
     # Embedder for vector search
     embedder_config = OpenAIEmbedderConfig(

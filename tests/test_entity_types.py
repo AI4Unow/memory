@@ -54,12 +54,14 @@ class TestEntityTypes:
         assert reflection.salience == 9
         assert reflection.pattern == ""
 
-    def test_entity_types_list(self):
+    def test_entity_types_dict(self):
         assert len(ENTITY_TYPES) == 4
-        assert Fact in ENTITY_TYPES
-        assert Decision in ENTITY_TYPES
-        assert Failure in ENTITY_TYPES
-        assert Reflection in ENTITY_TYPES
+        assert "Fact" in ENTITY_TYPES
+        assert "Decision" in ENTITY_TYPES
+        assert "Failure" in ENTITY_TYPES
+        assert "Reflection" in ENTITY_TYPES
+        assert ENTITY_TYPES["Fact"] is Fact
+        assert ENTITY_TYPES["Decision"] is Decision
 
     def test_salience_bounds(self):
         """Salience must be 1-10."""

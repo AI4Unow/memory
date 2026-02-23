@@ -5,6 +5,7 @@ extraction pipeline with custom entity types.
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -63,11 +64,17 @@ def _get_graphiti(request: Request) -> Graphiti:
     return graphiti
 
 
+def _sanitize_id(value: str) -> str:
+    """Sanitize an ID for graphiti — only alphanumeric, dashes, underscores."""
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", value)
+
+
 def _build_group_id(user_id: str, agent_id: Optional[str] = None) -> str:
     """Build graphiti group_id from user/agent scope."""
+    uid = _sanitize_id(user_id)
     if agent_id:
-        return f"{user_id}:{agent_id}"
-    return user_id
+        return f"{uid}_{_sanitize_id(agent_id)}"
+    return uid
 
 
 def _parse_source_type(source: str) -> EpisodeType:

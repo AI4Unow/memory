@@ -28,7 +28,7 @@ services:
       LLM_API_BASE: ${LLM_API_BASE:-https://api.ai4u.now/v1}
       LLM_API_KEY: ${LLM_API_KEY}
       LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-004}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
       RERANKER_MODEL: ${RERANKER_MODEL:-gpt-4o-mini}
     restart: unless-stopped
 

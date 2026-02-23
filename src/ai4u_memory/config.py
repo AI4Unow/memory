@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     llm_api_base: str = Field("https://api.ai4u.now/v1", alias="LLM_API_BASE")
     llm_api_key: str = Field("", alias="LLM_API_KEY")
     llm_model: str = Field("gemini-2.5-flash", alias="LLM_MODEL")
-    embedding_model: str = Field("text-embedding-004", alias="EMBEDDING_MODEL")
+    embedding_model: str = Field("text-embedding-3-small", alias="EMBEDDING_MODEL")
     reranker_model: str = Field("gpt-4o-mini", alias="RERANKER_MODEL")
 
     # Service
