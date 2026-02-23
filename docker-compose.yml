@@ -30,6 +30,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
       RERANKER_MODEL: ${RERANKER_MODEL:-gpt-4o-mini}
+      MEMORY_API_KEY: ${MEMORY_API_KEY:-}
     restart: unless-stopped
 
 volumes:

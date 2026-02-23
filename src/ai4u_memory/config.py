@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     host: str = Field("0.0.0.0", alias="HOST")
     port: int = Field(8000, alias="PORT")
 
+    # Auth — set to enable X-API-Key header requirement on /v1/* endpoints
+    memory_api_key: str = Field("", alias="MEMORY_API_KEY")
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
